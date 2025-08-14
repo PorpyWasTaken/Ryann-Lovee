@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>💕 Our Little Love Letters</title>
+  <meta name="description" content="A private, password‑only love letters blog for two." />
+  <!-- Firebase SDKs -->
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.1/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --bg1: #ffe7ef; /* soft pink */
+      --bg2: #e7f0ff; /* soft blue */
+      --card: #ffffffcc;
+      --accent: #ff7aa2;
+      --accent-2: #a779ff;
+      --text: #3c3c3c;
+      --muted: #6b6b6b;
+      --ring: #ffb3ca;
+      --ok: #4caf50;
+      --danger: #e2506e;
+    }
+
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: "Comic Sans MS", "Comic Sans", system-ui, -apple-system, Segoe UI, Roboto, emoji, sans-serif;
+      color: var(--text);
+      background: linear-gradient(135deg, var(--bg1), var(--bg2));
+      background-attachment: fixed;
+    }
+
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 24px clamp(16px, 5vw, 28px) 80px;
+    }
+
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin: 12px 0 22px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .heart {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: grid; place-items: center;
+      background: radial-gradient(circle at 30% 30%, #ff99bb, #ff5e8a);
+      box-shadow: 0 6px 20px #ff5e8a55, inset 0 2px 8px #ffffff99;
+      color: #fff; font-size: 22px;
+    }
+    h1 { font-size: clamp(20px, 5vw, 30px); margin: 0; }
+    .tag { color: var(--muted); font-size: 14px; }
+
+    .card {
+      background: var(--card);
+      backdrop-filter: blur(6px);
+      border-radius: 20px;
+      padding: 18px clamp(14px, 3.6vw, 22px);
+      box-shadow: 0 8px 24px #00000012, inset 0 1px 0 #ffffffaa;
+      border: 1px solid #ffffff88;
+    }
+
+    .login-card { max-width: 520px; margin: 12vh auto 0; text-align: center; }
+    .field {
+      display: grid; gap: 8px; margin: 10px 0 16px;
+    }
+    label { font-weight: 600; }
+    input[type="password"], input[type="text"], textarea {
+      border: 2px solid transparent;
+      outline: none;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: inset 0 1px 0 #00000008;
+      font-size: 16px;
+    }
+    input:focus, textarea:focus {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 4px #ffb3ca55;
+    }
+
+    .btn {
+      border: 0; cursor: pointer;
+      padding: 12px 16px; border-radius: 999px;
+      font-weight: 700; font-size: 15px;
+      box-shadow: 0 10px 20px #00000010;
+      transition: transform .06s ease, filter .2s ease, box-shadow .2s ease;
+      display: inline-flex; align-items: center; gap: 10px;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff;
+    }
+    .btn-ghost { background: #ffffffbb; }
+    .btn-danger { background: var(--danger); color:#fff; }
+
+    .row { display: grid; gap: 12px; }
+    @media (min-width: 640px) {
+      .row-cols-2 { grid-template-columns: 1fr 1fr; }
+    }
+
+    .error { color: var(--danger); font-weight: 700; margin-top: 8px; }
+    .ok { color: var(--ok); font-weight: 700; }
+
+    .compose { margin: 18px 0 26px; }
+    textarea { min-height: 130px; resize: vertical; }
+
+    .feed { display: grid; gap: 16px; margin-top: 10px; }
+    .post {
+      border-radius: 22px;
+      background: #fff;
+      padding: 16px;
+      box-shadow: 0 12px 28px #00000012;
+      border: 1px solid #00000008;
+    }
+    .post-head { display:flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .post-title { font-size: 18px; font-weight: 800; margin: 0; }
+    .post-meta { color: var(--muted); font-size: 13px; }
+    .post-img { width: 100%; border-radius: 16px; margin-top: 12px; object-fit: cover; max-height: 520px; }
+    .post-body { white-space: pre-wrap; line-height: 1.5; font-size: 16px; margin-top: 10px; }
+
+    .hide { display: none !important; }
+
+    .footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 28px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hide" id="appHeader">
+      <div class="brand">
+        <div class="heart" aria-hidden>♥</div>
+        <div>
+          <h1>Our Little Love Letters</h1>
+          <div class="tag" id="roleTag">Signed in</div>
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-ghost" id="logoutBtn" title="Log out">Logout</button>
+      </div>
+    </header>
+
+    <!-- Login -->
+    <section class="login-card card" id="loginCard">
+      <h2 style="margin:0 0 8px">Welcome, lovebirds 💞</h2>
+      <p class="tag">This little nook is just for us. Enter the shared secret to come in.</p>
+      <form id="loginForm" autocomplete="off">
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" inputmode="text" placeholder="Enter our secret…" required />
+        </div>
+        <button class="btn btn-primary" type="submit">Enter</button>
+        <div class="error" id="loginError" role="alert" aria-live="polite"></div>
+      </form>
+      <p class="tag" style="margin-top:12px">Tip: Save this page locally to keep it private.
+      </p>
+    </section>
+
+    <!-- App -->
+    <main id="app" class="hide">
+      <!-- Compose (admin only) -->
+      <section class="compose card" id="composeCard">
+        <h3 style="margin:0 0 10px">Write a new letter ✏️</h3>
+        <form id="composeForm">
+          <div class="row row-cols-2">
+            <div class="field">
+              <label for="title">Title (optional)</label>
+              <input id="title" name="title" type="text" placeholder="e.g., A tiny Tuesday poem" maxlength="80" />
+            </div>
+            <div class="field">
+              <label for="imageUrl">Image URL (optional)</label>
+              <input id="imageUrl" name="imageUrl" type="text" placeholder="https://i.imgur.com/…" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="body">Your letter</label>
+            <textarea id="body" name="body" placeholder="Pour your heart out here…" required></textarea>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
+            <button class="btn btn-primary" type="submit">Post letter</button>
+            <span id="composeMsg" class="tag" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <!-- Feed -->
+      <section class="feed" id="feed"></section>
+
+      <div class="footer">Made with ♥ just for us.</div>
+    </main>
+  </div>
+
+  <script>
+  /*****************************
+   * CONFIG (edit as you like) *
+   *****************************/
+  const ADMIN_PASSWORD = "AMSal2884@01";   // admin can read + post + delete
+  const USER_PASSWORD  = "RyannIsPretty";  // normal read-only
+
+  // Firebase config - fixed to work properly
+  const firebaseConfig = {
+    apiKey: "AIzaSyBgLNLGI9G41LYb98klPOwUwBvrTRt3MRM",
+    authDomain: "ryannlove-a8143.firebaseapp.com",
+    projectId: "ryannlove-a8143",
+    storageBucket: "ryannlove-a8143.firebasestorage.app",
+    messagingSenderId: "913197965929",
+    appId: "1:913197965929:web:23542b534ddc35930278f8"
+  };
+
+  /********************************
+   * Simple utilities & helpers   *
+   ********************************/
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  function fmtDate(ts) {
+    try {
+      const d = new Date(ts);
+      return d.toLocaleString(undefined, { year:"numeric", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
+    } catch {
+      return "";
+    }
+  }
+
+  function escapeHTML(str = "") {
+    return str
+      .replaceAll(/&/g, "&amp;")
+      .replaceAll(/</g, "&lt;")
+      .replaceAll(/>/g, "&gt;")
+      .replaceAll(/\"/g, "&quot;")
+      .replaceAll(/'/g, "&#039;");
+  }
+
+  function isValidURL(u=""){
+    if(!u) return true; // optional
+    try { new URL(u); return true; } catch { return false; }
+  }
+
+  function uid(){
+    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  function setSession(role){
+    sessionStorage.setItem("ll_role", role);
+  }
+  function getSessionRole(){
+    return sessionStorage.getItem("ll_role");
+  }
+  function clearSession(){
+    sessionStorage.removeItem("ll_role");
+  }
+
+  /*******************
+   * Firebase store   *
+   *******************/
+  let db = null, unsub = null;
+  const Fire = {
+    init(){
+      try {
+        if (!firebaseConfig || !firebaseConfig.projectId) {
+          console.warn("Firebase config missing");
+          return false;
+        }
+        
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore(app);
+        
+        console.log("Firebase initialized successfully");
+        return true;
+      } catch (error) {
+        console.error("Firebase initialization error:", error);
+        return false;
+      }
+    },
+    
+    onSnapshot(cb){
+      if(!db) return;
+      if (unsub) unsub();
+      
+      unsub = db.collection("love_letters")
+        .orderBy("createdAt", "desc")
+        .onSnapshot((snap)=>{
+          const posts = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+          console.log("Received posts:", posts);
+          cb(posts);
+        }, (error) => {
+          console.error("Firestore snapshot error:", error);
+        });
+    },
+    
+    async add(post){
+      if (!db) throw new Error("Firebase not initialized");
+      const ref = await db.collection("love_letters").add(post);
+      console.log("Added post with ID:", ref.id);
+      return ref.id;
+    },
+    
+    async remove(id){
+      if (!db) throw new Error("Firebase not initialized");
+      await db.collection("love_letters").doc(id).delete();
+      console.log("Deleted post with ID:", id);
+    }
+  };
+
+  /*******************
+   * UI references    *
+   *******************/
+  const loginCard = $('#loginCard');
+  const appHeader = $('#appHeader');
+  const app = $('#app');
+  const roleTag = $('#roleTag');
+  const logoutBtn = $('#logoutBtn');
+  const loginForm = $('#loginForm');
+  const loginError = $('#loginError');
+  const pwInput = $('#password');
+
+  const composeCard = $('#composeCard');
+  const composeForm = $('#composeForm');
+  const composeMsg = $('#composeMsg');
+  const titleEl = $('#title');
+  const imageEl = $('#imageUrl');
+  const bodyEl = $('#body');
+  const feed = $('#feed');
+
+  let ROLE = null; // 'admin' | 'user'
+
+  /*******************
+   * App bootstrap    *
+   *******************/
+  async function start(){
+    console.log("Starting app...");
+    
+    // Wait for Firebase to load
+    await new Promise(resolve => {
+      if (typeof firebase !== 'undefined') {
+        resolve();
+      } else {
+        window.addEventListener('load', resolve);
+      }
+    });
+
+    // Initialize Firebase
+    const firebaseOk = Fire.init();
+    if (!firebaseOk) {
+      console.error("Failed to initialize Firebase");
+      alert("Error: Could not connect to Firebase. Please check your internet connection.");
+      return;
+    }
+
+    // Resume session if present
+    const saved = getSessionRole();
+    if (saved === 'admin' || saved === 'user') {
+      ROLE = saved; 
+      showApp();
+      await bindFeed();
+    } else {
+      showLogin();
+    }
+  }
+
+  function showLogin(){
+    appHeader.classList.add('hide');
+    app.classList.add('hide');
+    loginCard.classList.remove('hide');
+    pwInput.focus();
+  }
+
+  function showApp(){
+    loginCard.classList.add('hide');
+    appHeader.classList.remove('hide');
+    app.classList.remove('hide');
+    roleTag.textContent = ROLE === 'admin' ? 'Signed in as Admin (can post & delete)' : 'Signed in (read‑only)';
+    composeCard.classList.toggle('hide', ROLE !== 'admin');
+  }
+
+  loginForm.addEventListener('submit', async (e)=>{
+    e.preventDefault(); 
+    loginError.textContent = '';
+    
+    const pw = (pwInput.value||'').trim();
+    if (!pw) { 
+      loginError.textContent = 'Please enter the password.'; 
+      return; 
+    }
+    
+    if (pw === ADMIN_PASSWORD) {
+      ROLE = 'admin'; 
+      setSession('admin'); 
+      showApp(); 
+      await bindFeed();
+    } else if (pw === USER_PASSWORD) {
+      ROLE = 'user'; 
+      setSession('user'); 
+      showApp(); 
+      await bindFeed();
+    } else {
+      loginError.textContent = 'That password doesn\'t look right.';
+    }
+  });
+
+  logoutBtn.addEventListener('click', ()=>{
+    clearSession(); 
+    ROLE = null;
+    
+    // Stop realtime listener
+    if (unsub) { 
+      unsub(); 
+      unsub = null; 
+    }
+    
+    // Hide posts for privacy
+    feed.innerHTML = '';
+    showLogin();
+  });
+
+  // Compose handler (admin only)
+  composeForm.addEventListener('submit', async (e)=>{
+    e.preventDefault(); 
+    composeMsg.textContent = '';
+    
+    if (ROLE !== 'admin') return;
+
+    const title = titleEl.value.trim();
+    const body = bodyEl.value.trim();
+    const imageUrl = imageEl.value.trim();
+
+    if (!body) { 
+      composeMsg.textContent = 'Please write something in the letter ♥'; 
+      composeMsg.className = 'error'; 
+      return; 
+    }
+    
+    if (!isValidURL(imageUrl)) { 
+      composeMsg.textContent = 'That image link doesn\'t look valid.'; 
+      composeMsg.className = 'error'; 
+      return; 
+    }
+
+    const post = {
+      title: title || '',
+      body,
+      imageUrl: imageUrl || '',
+      createdAt: Date.now()
+    };
+
+    try {
+      console.log("Posting:", post);
+      const id = await Fire.add(post);
+      composeMsg.textContent = 'Posted! ♥'; 
+      composeMsg.className = 'ok';
+      composeForm.reset();
+    } catch(err){
+      console.error("Post error:", err);
+      composeMsg.textContent = 'Could not post right now. Try again.';
+      composeMsg.className = 'error';
+    }
+  });
+
+  async function bindFeed(){
+    console.log("Binding feed...");
+    Fire.onSnapshot(renderPosts);
+  }
+
+  function renderPosts(posts){
+    console.log("Rendering posts:", posts);
+    feed.innerHTML = '';
+    
+    if (!posts || posts.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'card';
+      empty.innerHTML = `<div class="tag">No letters yet. ${ROLE==='admin' ? 'Write the very first one ✨' : 'Check back soon ✨'}</div>`;
+      feed.appendChild(empty);
+      return;
+    }
+
+    for (const p of posts) {
+      const title = escapeHTML(p.title || '');
+      const body = escapeHTML(p.body || '');
+      const img = (p.imageUrl||'').trim();
+      const div = document.createElement('article');
+      div.className = 'post';
+      div.dataset.id = p.id || '';
+
+      const titleHtml = title ? `<h4 class="post-title">${title}</h4>` : '';
+      const imgHtml = img ? `<img class="post-img" alt="Attached image" loading="lazy" src="${img}">` : '';
+      const delBtn = (ROLE==='admin') ? `<button class="btn btn-danger btn-sm" data-del="${p.id}">Delete</button>` : '';
+      const dateHtml = `<div class="post-meta">Posted on ${fmtDate(p.createdAt)}</div>`;
+
+      div.innerHTML = `
+        <div class="post-head">
+          <div>${titleHtml}${!title?'<div class="post-meta">Untitled love note</div>':''}</div>
+          <div style="display:flex; gap:8px; align-items:center;">${delBtn}</div>
+        </div>
+        ${dateHtml}
+        <div class="post-body">${body.replaceAll('\n','<br>')}</div>
+        ${imgHtml}
+      `;
+
+      feed.appendChild(div);
+    }
+
+    // Wire delete buttons
+    if (ROLE === 'admin') {
+      feed.querySelectorAll('[data-del]').forEach(btn=>{
+        btn.addEventListener('click', async (e)=>{
+          const id = e.currentTarget.getAttribute('data-del');
+          if (!id) return;
+          
+          const ok = confirm('Delete this letter? This cannot be undone.');
+          if (!ok) return;
+          
+          try {
+            await Fire.remove(id);
+          } catch(err){
+            alert('Sorry, could not delete right now.');
+            console.error(err);
+          }
+        });
+      });
+    }
+  }
+
+  // Start when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+  </script>
+</body>
+</html>
