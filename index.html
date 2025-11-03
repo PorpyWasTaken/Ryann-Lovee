@@ -11,8 +11,8 @@
 
   <style>
     :root {
-      --bg1: #ffe7ef;
-      --bg2: #e7f0ff;
+      --bg1: #ffe7ef; /* soft pink */
+      --bg2: #e7f0ff; /* soft blue */
       --card: #ffffffcc;
       --accent: #ff7aa2;
       --accent-2: #a779ff;
@@ -142,6 +142,7 @@
       </div>
     </header>
 
+    <!-- Login -->
     <section class="login-card card" id="loginCard">
       <h2 style="margin:0 0 8px">Welcome, my love 💞</h2>
       <p class="tag">My little secret blog / fan page just for you. Enter the password to get in!</p>
@@ -153,10 +154,13 @@
         <button class="btn btn-primary" type="submit">Enter</button>
         <div class="error" id="loginError" role="alert" aria-live="polite"></div>
       </form>
-      <p class="tag" style="margin-top:12px">You're my favorite</p>
+      <p class="tag" style="margin-top:12px">You're my favorite
+      </p>
     </section>
 
+    <!-- App -->
     <main id="app" class="hide">
+      <!-- Compose (admin only) -->
       <section class="compose card" id="composeCard">
         <h3 style="margin:0 0 10px">Write a new letter ✏️</h3>
         <form id="composeForm">
@@ -181,7 +185,9 @@
         </form>
       </section>
 
+      <!-- Feed -->
       <section class="feed" id="feed"></section>
+
       <div class="footer">Made with ♥ just for us.</div>
     </main>
   </div>
@@ -190,9 +196,10 @@
   /*****************************
    * CONFIG (edit as you like) *
    *****************************/
-  const ADMIN_PASSWORD = "AMSal2884@01";  
-  const USER_PASSWORD  = "RyannIsPretty";  
+  const ADMIN_PASSWORD = "AMSal2884@01";   // admin can read + post + delete
+  const USER_PASSWORD  = "RyannIsPretty";  // normal read-only
 
+  // Firebase config - fixed to work properly
   const firebaseConfig = {
     apiKey: "AIzaSyBgLNLGI9G41LYb98klPOwUwBvrTRt3MRM",
     authDomain: "ryannlove-a8143.firebaseapp.com",
@@ -202,23 +209,48 @@
     appId: "1:913197965929:web:23542b534ddc35930278f8"
   };
 
+  /********************************
+   * Simple utilities & helpers   *
+   ********************************/
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
   function fmtDate(ts) {
-    try { const d = new Date(ts); return d.toLocaleString(undefined, { year:"numeric", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }); } catch { return ""; }
+    try {
+      const d = new Date(ts);
+      return d.toLocaleString(undefined, { year:"numeric", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
+    } catch {
+      return "";
+    }
   }
 
   function escapeHTML(str = "") {
-    return str.replaceAll(/&/g, "&amp;").replaceAll(/</g, "&lt;").replaceAll(/>/g, "&gt;").replaceAll(/\"/g, "&quot;").replaceAll(/'/g, "&#039;");
+    return str
+      .replaceAll(/&/g, "&amp;")
+      .replaceAll(/</g, "&lt;")
+      .replaceAll(/>/g, "&gt;")
+      .replaceAll(/\"/g, "&quot;")
+      .replaceAll(/'/g, "&#039;");
   }
 
-  function isValidURL(u=""){ if(!u) return true; try { new URL(u); return true; } catch { return false; } }
+  function isValidURL(u=""){
+    if(!u) return true; // optional
+    try { new URL(u); return true; } catch { return false; }
+  }
 
-  function uid(){ return Math.random().toString(36).slice(2) + Date.now().toString(36); }
-  function setSession(role){ sessionStorage.setItem("ll_role", role); }
-  function getSessionRole(){ return sessionStorage.getItem("ll_role"); }
-  function clearSession(){ sessionStorage.removeItem("ll_role"); }
+  function uid(){
+    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  function setSession(role){
+    sessionStorage.setItem("ll_role", role);
+  }
+  function getSessionRole(){
+    return sessionStorage.getItem("ll_role");
+  }
+  function clearSession(){
+    sessionStorage.removeItem("ll_role");
+  }
 
   /*******************
    * Firebase store   *
@@ -227,87 +259,276 @@
   const Fire = {
     init(){
       try {
-        if (!firebaseConfig || !firebaseConfig.projectId) { console.warn("Firebase config missing"); return false; }
+        if (!firebaseConfig || !firebaseConfig.projectId) {
+          console.warn("Firebase config missing");
+          return false;
+        }
+        
+        // Initialize Firebase
         const app = firebase.initializeApp(firebaseConfig);
         db = firebase.firestore(app);
+        
         console.log("Firebase initialized successfully");
         return true;
       } catch (error) {
-        console.error("Firebase initialization error:", error); return false;
+        console.error("Firebase initialization error:", error);
+        return false;
       }
     },
+    
     onSnapshot(cb){
-      if(!db) return; if (unsub) unsub();
-      unsub = db.collection("love_letters").orderBy("createdAt","desc").onSnapshot((snap)=>{
-        const posts = snap.docs.map(d=>({ id:d.id, ...d.data() })); cb(posts);
-      }, e => console.error("Firestore snapshot error:", e));
+      if(!db) return;
+      if (unsub) unsub();
+      
+      unsub = db.collection("love_letters")
+        .orderBy("createdAt", "desc")
+        .onSnapshot((snap)=>{
+          const posts = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+          console.log("Received posts:", posts);
+          cb(posts);
+        }, (error) => {
+          console.error("Firestore snapshot error:", error);
+        });
     },
-    async add(post){ if(!db) throw new Error("Firebase not initialized"); const ref = await db.collection("love_letters").add(post); console.log("Added post with ID:", ref.id); return ref.id; },
-    async remove(id){ if(!db) throw new Error("Firebase not initialized"); await db.collection("love_letters").doc(id).delete(); console.log("Deleted post with ID:", id); }
+    
+    async add(post){
+      if (!db) throw new Error("Firebase not initialized");
+      const ref = await db.collection("love_letters").add(post);
+      console.log("Added post with ID:", ref.id);
+      return ref.id;
+    },
+    
+    async remove(id){
+      if (!db) throw new Error("Firebase not initialized");
+      await db.collection("love_letters").doc(id).delete();
+      console.log("Deleted post with ID:", id);
+    }
   };
-
-  /* ---------------------------
-     Login logging
-     --------------------------- */
-  async function fetchPublicIP(timeout=3000){ try{ const controller=new AbortController(); const id=setTimeout(()=>controller.abort(),timeout); const r=await fetch('https://api.ipify.org?format=json',{signal:controller.signal}); clearTimeout(id); if(!r.ok) return ''; const j=await r.json(); return j.ip||''; }catch{return '';}}
-  async function getClientInfo(){ const ua=navigator.userAgent||''; const platform=navigator.platform||''; const language=navigator.language||navigator.userLanguage||''; const screenW=(window.screen&&window.screen.width)||0; const screenH=(window.screen&&window.screen.height)||0; const innerW=window.innerWidth||0; const innerH=window.innerHeight||0; const timezone=(Intl&&Intl.DateTimeFormat&&Intl.DateTimeFormat().resolvedOptions().timeZone)||''; const doNotTrack=navigator.doNotTrack||navigator.msDoNotTrack||window.doNotTrack||null; const cookieEnabled=navigator.cookieEnabled===undefined?null:navigator.cookieEnabled; const ip=await fetchPublicIP(); return {userAgent:ua,platform,language,screen:{width:screenW,height:screenH},viewport:{width:innerW,height:innerH},timezone,ip,doNotTrack,cookieEnabled};}
-  Fire.logLogin=async function(role='unknown',meta={}){ if(!db){console.warn('Fire.logLogin: no db connection'); return;} try{ const info=await getClientInfo(); const doc={role,when:Date.now(),info,meta}; await db.collection('login_logs').add(doc); console.log('Login logged:',{role,ip:info.ip||'(none)'});}catch(err){console.error('Could not write login log:',err);}};
 
   /*******************
    * UI references    *
    *******************/
-  const loginCard = $('#loginCard'); const appHeader = $('#appHeader'); const app = $('#app'); const roleTag = $('#roleTag'); const logoutBtn = $('#logoutBtn'); const loginForm = $('#loginForm'); const loginError = $('#loginError'); const pwInput = $('#password'); const composeCard = $('#composeCard'); const composeForm = $('#composeForm'); const composeMsg = $('#composeMsg'); const titleEl = $('#title'); const imageEl = $('#imageUrl'); const bodyEl = $('#body'); const feed = $('#feed'); let ROLE = null;
+  const loginCard = $('#loginCard');
+  const appHeader = $('#appHeader');
+  const app = $('#app');
+  const roleTag = $('#roleTag');
+  const logoutBtn = $('#logoutBtn');
+  const loginForm = $('#loginForm');
+  const loginError = $('#loginError');
+  const pwInput = $('#password');
+
+  const composeCard = $('#composeCard');
+  const composeForm = $('#composeForm');
+  const composeMsg = $('#composeMsg');
+  const titleEl = $('#title');
+  const imageEl = $('#imageUrl');
+  const bodyEl = $('#body');
+  const feed = $('#feed');
+
+  let ROLE = null; // 'admin' | 'user'
 
   /*******************
    * App bootstrap    *
    *******************/
   async function start(){
     console.log("Starting app...");
-    await new Promise(resolve => { if(typeof firebase!=='undefined'){resolve();}else{window.addEventListener('load',resolve);}});
+    
+    // Wait for Firebase to load
+    await new Promise(resolve => {
+      if (typeof firebase !== 'undefined') {
+        resolve();
+      } else {
+        window.addEventListener('load', resolve);
+      }
+    });
+
+    // Initialize Firebase
     const firebaseOk = Fire.init();
-    if(!firebaseOk){ alert("Error: Could not connect to Firebase."); return; }
+    if (!firebaseOk) {
+      console.error("Failed to initialize Firebase");
+      alert("Error: Could not connect to Firebase. Please check your internet connection.");
+      return;
+    }
+
+    // Resume session if present
     const saved = getSessionRole();
-    if(saved==='admin'||saved==='user'){ ROLE=saved; showApp(); await bindFeed(); Fire.logLogin(ROLE,{note:'session-resume'}); } else{ showLogin(); }
+    if (saved === 'admin' || saved === 'user') {
+      ROLE = saved; 
+      showApp();
+      await bindFeed();
+    } else {
+      showLogin();
+    }
   }
 
-  function showLogin(){ appHeader.classList.add('hide'); app.classList.add('hide'); loginCard.classList.remove('hide'); pwInput.focus(); }
-  function showApp(){ loginCard.classList.add('hide'); appHeader.classList.remove('hide'); app.classList.remove('hide'); roleTag.textContent = ROLE==='admin'?'Signed in as Admin (can post & delete)':'Signed in (read‑only)'; composeCard.classList.toggle('hide',ROLE!=='admin'); }
+  function showLogin(){
+    appHeader.classList.add('hide');
+    app.classList.add('hide');
+    loginCard.classList.remove('hide');
+    pwInput.focus();
+  }
 
-  loginForm.addEventListener('submit', async e=>{
-    e.preventDefault(); loginError.textContent=''; const pw=(pwInput.value||'').trim();
-    if(!pw){ loginError.textContent='Please enter the password.'; return; }
-    if(pw===ADMIN_PASSWORD){ ROLE='admin'; setSession('admin'); showApp(); await bindFeed(); Fire.logLogin('admin',{note:'password-login'}); }
-    else if(pw===USER_PASSWORD){ ROLE='user'; setSession('user'); showApp(); await bindFeed(); Fire.logLogin('user',{note:'password-login'}); }
-    else{ loginError.textContent='That password doesn\'t look right.'; }
+  function showApp(){
+    loginCard.classList.add('hide');
+    appHeader.classList.remove('hide');
+    app.classList.remove('hide');
+    roleTag.textContent = ROLE === 'admin' ? 'Signed in as Admin (can post & delete)' : 'Signed in (read‑only)';
+    composeCard.classList.toggle('hide', ROLE !== 'admin');
+  }
+
+  loginForm.addEventListener('submit', async (e)=>{
+    e.preventDefault(); 
+    loginError.textContent = '';
+    
+    const pw = (pwInput.value||'').trim();
+    if (!pw) { 
+      loginError.textContent = 'Please enter the password.'; 
+      return; 
+    }
+    
+    if (pw === ADMIN_PASSWORD) {
+      ROLE = 'admin'; 
+      setSession('admin'); 
+      showApp(); 
+      await bindFeed();
+    } else if (pw === USER_PASSWORD) {
+      ROLE = 'user'; 
+      setSession('user'); 
+      showApp(); 
+      await bindFeed();
+    } else {
+      loginError.textContent = 'That password doesn\'t look right.';
+    }
   });
 
-  logoutBtn.addEventListener('click',()=>{ clearSession(); ROLE=null; if(unsub){unsub(); unsub=null;} feed.innerHTML=''; showLogin(); });
-
-  composeForm.addEventListener('submit', async e=>{
-    e.preventDefault(); composeMsg.textContent=''; if(ROLE!=='admin') return;
-    const title=titleEl.value.trim(); const body=bodyEl.value.trim(); const imageUrl=imageEl.value.trim();
-    if(!body){ composeMsg.textContent='Please write something in the letter ♥'; composeMsg.className='error'; return; }
-    if(!isValidURL(imageUrl)){ composeMsg.textContent='That image link doesn\'t look valid.'; composeMsg.className='error'; return; }
-    const post={title:title||'',body,imageUrl:imageUrl||'',createdAt:Date.now()};
-    try{ console.log("Posting:",post); await Fire.add(post); composeMsg.textContent='Posted! ♥'; composeMsg.className='ok'; composeForm.reset(); }catch(err){console.error("Post error:",err); composeMsg.textContent='Could not post right now. Try again.'; composeMsg.className='error'; }
+  logoutBtn.addEventListener('click', ()=>{
+    clearSession(); 
+    ROLE = null;
+    
+    // Stop realtime listener
+    if (unsub) { 
+      unsub(); 
+      unsub = null; 
+    }
+    
+    // Hide posts for privacy
+    feed.innerHTML = '';
+    showLogin();
   });
 
-  async function bindFeed(){ console.log("Binding feed..."); Fire.onSnapshot(renderPosts); }
+  // Compose handler (admin only)
+  composeForm.addEventListener('submit', async (e)=>{
+    e.preventDefault(); 
+    composeMsg.textContent = '';
+    
+    if (ROLE !== 'admin') return;
+
+    const title = titleEl.value.trim();
+    const body = bodyEl.value.trim();
+    const imageUrl = imageEl.value.trim();
+
+    if (!body) { 
+      composeMsg.textContent = 'Please write something in the letter ♥'; 
+      composeMsg.className = 'error'; 
+      return; 
+    }
+    
+    if (!isValidURL(imageUrl)) { 
+      composeMsg.textContent = 'That image link doesn\'t look valid.'; 
+      composeMsg.className = 'error'; 
+      return; 
+    }
+
+    const post = {
+      title: title || '',
+      body,
+      imageUrl: imageUrl || '',
+      createdAt: Date.now()
+    };
+
+    try {
+      console.log("Posting:", post);
+      const id = await Fire.add(post);
+      composeMsg.textContent = 'Posted! ♥'; 
+      composeMsg.className = 'ok';
+      composeForm.reset();
+    } catch(err){
+      console.error("Post error:", err);
+      composeMsg.textContent = 'Could not post right now. Try again.';
+      composeMsg.className = 'error';
+    }
+  });
+
+  async function bindFeed(){
+    console.log("Binding feed...");
+    Fire.onSnapshot(renderPosts);
+  }
 
   function renderPosts(posts){
-    console.log("Rendering posts:",posts); feed.innerHTML='';
-    if(!posts||posts.length===0){ const empty=document.createElement('div'); empty.className='card'; empty.innerHTML=`<div class="tag">No letters yet. ${ROLE==='admin'?'Write the very first one ✨':'Check back soon ✨'}</div>`; feed.appendChild(empty); return; }
-    for(const p of posts){
-      const title=escapeHTML(p.title||''); const body=escapeHTML(p.body||''); const img=(p.imageUrl||'').trim();
-      const div=document.createElement('article'); div.className='post'; div.dataset.id=p.id||'';
-      const titleHtml=title?`<h4 class="post-title">${title}</h4>`:''; const imgHtml=img?`<img class="post-img" alt="Attached image" loading="lazy" src="${img}">``:''; const delBtn=ROLE==='admin'?`<button class="btn btn-danger btn-sm" data-del="${p.id}">Delete</button>`:''; const dateHtml=`<div class="post-meta">Posted on ${fmtDate(p.createdAt)}</div>`;
-      div.innerHTML=`<div class="post-head"><div>${titleHtml}${!title?'<div class="post-meta">Untitled love note</div>':''}</div><div style="display:flex; gap:8px; align-items:center;">${delBtn}</div></div>${dateHtml}<div class="post-body">${body.replaceAll('\n','<br>')}</div>${imgHtml}`;
+    console.log("Rendering posts:", posts);
+    feed.innerHTML = '';
+    
+    if (!posts || posts.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'card';
+      empty.innerHTML = `<div class="tag">No letters yet. ${ROLE==='admin' ? 'Write the very first one ✨' : 'Check back soon ✨'}</div>`;
+      feed.appendChild(empty);
+      return;
+    }
+
+    for (const p of posts) {
+      const title = escapeHTML(p.title || '');
+      const body = escapeHTML(p.body || '');
+      const img = (p.imageUrl||'').trim();
+      const div = document.createElement('article');
+      div.className = 'post';
+      div.dataset.id = p.id || '';
+
+      const titleHtml = title ? `<h4 class="post-title">${title}</h4>` : '';
+      const imgHtml = img ? `<img class="post-img" alt="Attached image" loading="lazy" src="${img}">` : '';
+      const delBtn = (ROLE==='admin') ? `<button class="btn btn-danger btn-sm" data-del="${p.id}">Delete</button>` : '';
+      const dateHtml = `<div class="post-meta">Posted on ${fmtDate(p.createdAt)}</div>`;
+
+      div.innerHTML = `
+        <div class="post-head">
+          <div>${titleHtml}${!title?'<div class="post-meta">Untitled love note</div>':''}</div>
+          <div style="display:flex; gap:8px; align-items:center;">${delBtn}</div>
+        </div>
+        ${dateHtml}
+        <div class="post-body">${body.replaceAll('\n','<br>')}</div>
+        ${imgHtml}
+      `;
+
       feed.appendChild(div);
     }
-    if(ROLE==='admin'){ feed.querySelectorAll('[data-del]').forEach(btn=>{ btn.addEventListener('click',async e=>{ const id=e.currentTarget.getAttribute('data-del'); if(!id) return; if(!confirm('Delete this letter? This cannot be undone.')) return; try{ await Fire.remove(id); }catch(err){ alert('Sorry, could not delete right now.'); console.error(err); } }); }); }
+
+    // Wire delete buttons
+    if (ROLE === 'admin') {
+      feed.querySelectorAll('[data-del]').forEach(btn=>{
+        btn.addEventListener('click', async (e)=>{
+          const id = e.currentTarget.getAttribute('data-del');
+          if (!id) return;
+          
+          const ok = confirm('Delete this letter? This cannot be undone.');
+          if (!ok) return;
+          
+          try {
+            await Fire.remove(id);
+          } catch(err){
+            alert('Sorry, could not delete right now.');
+            console.error(err);
+          }
+        });
+      });
+    }
   }
 
-  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',start); } else{ start(); }
+  // Start when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
   </script>
 </body>
 </html>
