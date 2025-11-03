@@ -306,7 +306,7 @@
   };
 
   /*******************
-   * Login tracking   *
+   * Visitor & Login tracking   *
    *******************/
   async function getBrowserInfo() {
     const nav = navigator;
@@ -330,6 +330,37 @@
     } catch (error) {
       console.error('Failed to fetch IP:', error);
       return 'unavailable';
+    }
+  }
+
+  async function logPageVisit() {
+    if (!db) return;
+    
+    const browserInfo = await getBrowserInfo();
+    const ipAddress = await getIPAddress();
+    
+    const visitLog = {
+      timestamp: Date.now(),
+      timestampReadable: new Date().toISOString(),
+      ipAddress: ipAddress,
+      pageUrl: window.location.href,
+      referrer: document.referrer || 'direct',
+      browser: {
+        userAgent: browserInfo.userAgent,
+        platform: browserInfo.platform,
+        language: browserInfo.language,
+        screenResolution: browserInfo.screenResolution,
+        timezone: browserInfo.timezone,
+        cookiesEnabled: browserInfo.cookiesEnabled,
+        onlineStatus: browserInfo.onlineStatus
+      }
+    };
+    
+    try {
+      await db.collection("page_visits").add(visitLog);
+      console.log('Page visit logged successfully');
+    } catch (error) {
+      console.error('Error logging page visit:', error);
     }
   }
 
