@@ -154,7 +154,7 @@
         <button class="btn btn-primary" type="submit">Enter</button>
         <div class="error" id="loginError" role="alert" aria-live="polite"></div>
       </form>
-      <p class="tag" style="margin-top:12px">You're my favorite
+      <p class="tag" style="margin-top:12px">You're my favorite. By logging in, basic login info (IP, browser, timestamp) is collected for security.
       </p>
     </section>
 
@@ -306,6 +306,65 @@
   };
 
   /*******************
+   * Login tracking   *
+   *******************/
+  async function getBrowserInfo() {
+    const nav = navigator;
+    return {
+      userAgent: nav.userAgent,
+      platform: nav.platform,
+      language: nav.language,
+      screenResolution: `${screen.width}x${screen.height}`,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      cookiesEnabled: nav.cookieEnabled,
+      onlineStatus: nav.onLine
+    };
+  }
+
+  async function getIPAddress() {
+    try {
+      // Using ipify API to get public IP address
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      return data.ip;
+    } catch (error) {
+      console.error('Failed to fetch IP:', error);
+      return 'unavailable';
+    }
+  }
+
+  async function logLoginAttempt(role) {
+    if (!db) return;
+    
+    const browserInfo = await getBrowserInfo();
+    const ipAddress = await getIPAddress();
+    
+    const loginLog = {
+      role: role,
+      timestamp: Date.now(),
+      timestampReadable: new Date().toISOString(),
+      ipAddress: ipAddress,
+      browser: {
+        userAgent: browserInfo.userAgent,
+        platform: browserInfo.platform,
+        language: browserInfo.language,
+        screenResolution: browserInfo.screenResolution,
+        timezone: browserInfo.timezone,
+        cookiesEnabled: browserInfo.cookiesEnabled,
+        onlineStatus: browserInfo.onlineStatus
+      }
+    };
+    
+    try {
+      await db.collection("login_logs").add(loginLog);
+      console.log('Login logged successfully');
+    } catch (error) {
+      console.error('Error logging login:', error);
+      throw error;
+    }
+  }
+
+  /*******************
    * UI references    *
    *******************/
   const loginCard = $('#loginCard');
@@ -386,19 +445,28 @@
       return; 
     }
     
+    let userRole = null;
     if (pw === ADMIN_PASSWORD) {
-      ROLE = 'admin'; 
-      setSession('admin'); 
-      showApp(); 
-      await bindFeed();
+      userRole = 'admin';
     } else if (pw === USER_PASSWORD) {
-      ROLE = 'user'; 
-      setSession('user'); 
-      showApp(); 
-      await bindFeed();
+      userRole = 'user';
     } else {
       loginError.textContent = 'That password doesn\'t look right.';
+      return;
     }
+    
+    // Log the login attempt
+    try {
+      await logLoginAttempt(userRole);
+    } catch(err) {
+      console.error('Failed to log login:', err);
+      // Continue anyway - don't block login if logging fails
+    }
+    
+    ROLE = userRole;
+    setSession(userRole); 
+    showApp(); 
+    await bindFeed();
   });
 
   logoutBtn.addEventListener('click', ()=>{
